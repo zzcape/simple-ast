@@ -1,0 +1,13 @@
+{
+  "name": "ast-deobfuscator",
+  "version": "1.0.0",
+  "description": "AST Deobfuscation Demo",
+  "main": "index.js",
+  "dependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/generator": "^7.23.0",
+    "@babel/parser": "^7.23.0",
+    "@babel/traverse": "^7.23.0",
+    "@babel/types": "^7.23.0"
+  }
+}

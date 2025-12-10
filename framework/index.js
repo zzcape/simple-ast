@@ -10,8 +10,13 @@ class Deobfuscator {
         this.ast = parser.parse(code, {
             sourceType: 'module'
         });
-        // 默认启用的 visitors
+        // 默认配置
         this.options = {
+            // 如果提供了 pipeline 数组，将优先使用该数组定义执行顺序和次数
+            // 例如: ['simplify', 'deadCode', 'simplify']
+            pipeline: null,
+
+            // 下方是默认 pipeline 的构建开关 (仅当 pipeline 为 null 时生效)
             literals: true,
             constants: true,
             stringArray: true,
@@ -26,62 +31,74 @@ class Deobfuscator {
         };
     }
 
-    run() {
-        const ops = this.options;
-        const v = visitors;
-
-        // 1. Eval 还原 (最优先，因为它可能包含其他混淆代码)
-        if (ops.evalRestore) traverse(this.ast, v.evalRestore);
-
-        // 2. 基础字面量还原
-        if (ops.literals) traverse(this.ast, v.literals);
-
-        // 3. 逗号表达式还原
-        if (ops.sequenceExpr) traverse(this.ast, v.sequenceExpr);
-
-        // 4. 常量折叠
-        if (ops.constants) traverse(this.ast, v.constants);
-
-        // 5. 字符串数组解密
-        if (ops.stringArray) {
-            traverse(this.ast, { Program(p) { p.scope.crawl(); } });
-            traverse(this.ast, v.stringArray);
-        }
-
-        // 6. 代理函数还原
-        if (ops.proxyFunctions) traverse(this.ast, v.proxyFunctions);
-        
-        // 7. 控制流平坦化
-        if (ops.controlFlow) traverse(this.ast, v.controlFlow);
-
-        // 8. 死代码移除
-        if (ops.deadCode) traverse(this.ast, v.deadCode);
-
-        // 9. 语法简化
-        if (ops.simplify) traverse(this.ast, v.simplify);
-
-        // 10. 变量重命名 (最后执行)
-        if (ops.renameVars) {
-            traverse(this.ast, { Program(p) { p.scope.crawl(); } });
-            traverse(this.ast, v.renameVars);
-        }
-        
-        // 11. 清理未引用变量 (始终执行)
-        traverse(this.ast, { Program(p) { p.scope.crawl(); } });
-        traverse(this.ast, {
-            VariableDeclarator(path) {
-                const binding = path.scope.getBinding(path.node.id.name);
-                if (binding && !binding.referenced && binding.constant) {
-                     const init = path.node.init;
-                     const t = require('@babel/types');
-                     if (!init || t.isLiteral(init) || t.isObjectExpression(init) || t.isArrayExpression(init) || t.isFunctionExpression(init)) {
-                         path.remove();
-                     }
+    /**
+     * 执行指定的 visitors
+     * @param {Array<string|Object>} visitorList visitor 名称或对象数组
+     */
+    transform(visitorList) {
+        visitorList.forEach(v => {
+            if (typeof v === 'string') {
+                if (visitors[v]) {
+                    traverse(this.ast, visitors[v]);
+                } else {
+                    console.warn(`未找到 Visitor: '${v}'`);
                 }
+            } else if (typeof v === 'object') {
+                traverse(this.ast, v);
             }
         });
-
         return this;
+    }
+
+    /**
+     * 运行解混淆流程
+     * 如果 options 中指定了 pipeline，则按 pipeline 执行
+     * 否则根据 boolean 选项构建默认 pipeline
+     */
+    run() {
+        // 1. 如果指定了 pipeline，直接执行
+        if (this.options.pipeline && Array.isArray(this.options.pipeline)) {
+            return this.transform(this.options.pipeline);
+        }
+
+        // 2. 否则构建默认 pipeline
+        const ops = this.options;
+        const pipeline = [];
+
+        // 1. Eval 还原 (最优先，因为它可能包含其他混淆代码)
+        if (ops.evalRestore) pipeline.push('evalRestore');
+
+        // 2. 基础字面量还原
+        if (ops.literals) pipeline.push('literals');
+
+        // 3. 逗号表达式还原
+        if (ops.sequenceExpr) pipeline.push('sequenceExpr');
+
+        // 4. 常量折叠
+        if (ops.constants) pipeline.push('constants');
+
+        // 5. 字符串数组解密
+        if (ops.stringArray) pipeline.push('stringArray');
+
+        // 6. 代理函数还原
+        if (ops.proxyFunctions) pipeline.push('proxyFunctions');
+        
+        // 7. 控制流平坦化
+        if (ops.controlFlow) pipeline.push('controlFlow');
+
+        // 8. 死代码移除
+        if (ops.deadCode) pipeline.push('deadCode');
+
+        // 9. 语法简化
+        if (ops.simplify) pipeline.push('simplify');
+
+        // 10. 变量重命名 (最后执行)
+        if (ops.renameVars) pipeline.push('renameVars');
+        
+        // 11. 清理未引用变量 (始终执行)
+        pipeline.push('removeUnusedVariables');
+
+        return this.transform(pipeline);
     }
 
     generate(options = { minimal: true }) {

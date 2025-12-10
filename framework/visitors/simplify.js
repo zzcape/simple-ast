@@ -1,7 +1,7 @@
 const t = require('@babel/types');
 
 module.exports = {
-    // 1. Member Expression Simplification: obj['prop'] -> obj.prop
+    // 1. 成员表达式简化: obj['prop'] -> obj.prop
     MemberExpression(path) {
         const { property, computed } = path.node;
         if (computed && t.isStringLiteral(property)) {
@@ -14,7 +14,7 @@ module.exports = {
         }
     },
 
-    // 2. Unary Expression Simplification
+    // 2. 一元表达式简化
     UnaryExpression(path) {
         const { operator, argument } = path.node;
         

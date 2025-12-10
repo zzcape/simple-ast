@@ -4,6 +4,7 @@ module.exports = {
     // 简单的重命名策略：将 _0x... 这种看起来像混淆的变量名重命名为 v_1, v_2...
     // 注意：这只是一个简单的示例，实际重命名需要考虑作用域冲突等复杂情况
     Program(path) {
+        path.scope.crawl();
         let counter = 0;
         const renameMap = new Map();
 

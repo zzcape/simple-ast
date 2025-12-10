@@ -1,6 +1,9 @@
 const t = require('@babel/types');
 
 module.exports = {
+    Program(path) {
+        path.scope.crawl();
+    },
     VariableDeclarator(path) {
         const { id, init } = path.node;
         if (!t.isArrayExpression(init)) return;
